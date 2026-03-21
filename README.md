@@ -17,12 +17,15 @@
   
 ## 😀测试相关文件
 test相关:
+
+```
 tests/
 ├── command_parser_test.cpp    # 测试命令解析
 ├── client_logic_test.cpp      # 测试客户端逻辑
 ├── server_logic_test.cpp      # 测试服务器逻辑
 ├── network_test.cpp          # 测试网络相关
 └── integration_test.cpp      # 集成测试
+```
 
 ### 安装依赖（Ubuntu）
 ```bash
