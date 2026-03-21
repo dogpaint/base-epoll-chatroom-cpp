@@ -15,8 +15,8 @@
 - 构建工具：CMake 3.10+
 - 测试框架：Google Test（GTest）
   
-##😀测试相关文件
--test相关:
+## 😀测试相关文件
+- test相关:
 tests/
 ├── command_parser_test.cpp    # 测试命令解析
 ├── client_logic_test.cpp      # 测试客户端逻辑
