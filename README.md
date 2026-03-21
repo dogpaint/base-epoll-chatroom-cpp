@@ -1,4 +1,3 @@
-# base-epoll-chatroom-cpp
 # C++ 聊天室项目（Linux版）
 一个基于Linux epoll实现的多客户端聊天室，支持昵称修改、在线用户查看、消息广播等核心功能，配套完整的单元测试。
 
@@ -15,6 +14,15 @@
 - 编译器：g++ 7.5+（支持C++11及以上）
 - 构建工具：CMake 3.10+
 - 测试框架：Google Test（GTest）
+  
+##😀测试相关文件
+-test相关:
+tests/
+├── command_parser_test.cpp    # 测试命令解析
+├── client_logic_test.cpp      # 测试客户端逻辑
+├── server_logic_test.cpp      # 测试服务器逻辑
+├── network_test.cpp          # 测试网络相关
+└── integration_test.cpp      # 集成测试
 
 ### 安装依赖（Ubuntu）
 ```bash
@@ -25,10 +33,3 @@ sudo apt update && sudo apt install -y g++ cmake
 sudo apt install -y libgtest-dev
 cd /usr/src/gtest && sudo cmake . && sudo make && sudo cp lib/libgtest* /usr/lib/
 
-test相关:
-tests/
-├── command_parser_test.cpp    # 测试命令解析
-├── client_logic_test.cpp      # 测试客户端逻辑
-├── server_logic_test.cpp      # 测试服务器逻辑
-├── network_test.cpp          # 测试网络相关
-└── integration_test.cpp      # 集成测试
