@@ -1,0 +1,21 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/include", // 添加这行
+                "${workspaceFolder}/src", // 添加这行
+                "${workspaceFolder}/**", // 递归包含所有子目录
+                "/usr/include",
+                "/usr/local/include"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/g++",
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "linux-gcc-x64",
+            "configurationProvider": "ms-vscode.cmake-tools" // 如果有 CMake Tools 扩展
+        }
+    ],
+    "version": 4
+}
