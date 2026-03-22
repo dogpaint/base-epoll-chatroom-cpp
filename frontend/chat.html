@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>聊天室客户端</title>
+    <style>
+        :root {
+            --primary-bg: #f8fafc;
+            /* 主背景 - 浅灰蓝 */
+            --secondary-bg: #ffffff;
+            /* 次背景 - 纯白 */
+            --self-msg-bg: #e3f2fd;
+            /* 自己消息 - 淡蓝 */
+            --other-msg-bg: #f3f4f6;
+            /* 他人消息 - 淡灰 */
+            --system-msg-bg: #fef3c7;
+            /* 系统消息 - 淡黄 */
+            --primary-text: #1f2937;
+            /* 主文字 - 深灰 */
+            --secondary-text: #6b7280;
+            /* 次文字 - 中灰 */
+            --accent-color: #3b82f6;
+            /* 强调色 - 蓝色 */
+            --border-color: #e5e7eb;
+            /* 边框色 - 浅灰 */
+            --shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: var(--primary-bg);
+            color: var(--primary-text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .chat-container {
+            width: 100%;
+            max-width: 800px;
+            height: 600px;
+            background: var(--secondary-bg);
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+
+        .chat-header {
+            padding: 20px;
+            background: var(--secondary-bg);
+            border-bottom: 1px solid var(--border-color);
+            text-align: center;
+        }
+
+        .chat-header h1 {
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--accent-color);
+            margin-bottom: 4px;
+        }
+
+        .chat-header .status {
+            font-size: 14px;
+            color: var(--secondary-text);
+        }
+
+        .chat-box {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        /* 消息通用样式 */
+        .message {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            line-height: 1.4;
+            word-break: break-word;
+            position: relative;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* 自己发送的消息 */
+        .message.self {
+            align-self: flex-end;
+            background: var(--self-msg-bg);
+            border-bottom-right-radius: 4px;
+            margin-left: auto;
+        }
+
+        /* 他人发送的消息 */
+        .message.other {
+            align-self: flex-start;
+            background: var(--other-msg-bg);
+            border-bottom-left-radius: 4px;
+        }
+
+        /* 系统消息 */
+        .message.system {
+            align-self: center;
+            background: var(--system-msg-bg);
+            border-radius: 12px;
+            max-width: 90%;
+            font-size: 14px;
+            padding: 8px 16px;
+            text-align: center;
+        }
+
+        /* 消息元信息（时间、发送者） */
+        .message-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+
+        .sender-name {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .message.self .sender-name {
+            color: var(--accent-color);
+        }
+
+        .message.other .sender-name {
+            color: var(--primary-text);
+        }
+
+        .message-time {
+            font-size: 12px;
+            color: var(--secondary-text);
+        }
+
+        .input-area {
+            padding: 20px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            gap: 12px;
+            background: var(--secondary-bg);
+        }
+
+        #input-box {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 24px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.2s;
+            background: var(--primary-bg);
+        }
+
+        #input-box:focus {
+            border-color: var(--accent-color);
+        }
+
+        #input-box::placeholder {
+            color: var(--secondary-text);
+        }
+
+        #send-btn {
+            padding: 0 24px;
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 24px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        #send-btn:hover {
+            background: #2563eb;
+        }
+
+        #send-btn:active {
+            transform: scale(0.98);
+        }
+
+        /* 滚动条样式 */
+        .chat-box::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .chat-box::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .chat-box::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 3px;
+        }
+
+        .chat-box::-webkit-scrollbar-thumb:hover {
+            background: #d1d5db;
+        }
+
+        /* 连接状态指示器 */
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+
+        .status.connected .status-indicator {
+            background: #10b981;
+        }
+
+        .status.disconnected .status-indicator {
+            background: #ef4444;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <h1>聊天室</h1>
+            <div class="status" id="status">
+                <span class="status-indicator"></span>
+                <span id="status-text">连接中...</span>
+            </div>
+        </div>
+
+        <div class="chat-box" id="chat-box">
+            <!-- 消息将在这里动态添加 -->
+        </div>
+
+        <div class="input-area">
+            <input type="text" id="input-box" placeholder="输入消息..." autofocus>
+            <button id="send-btn">发送</button>
+        </div>
+    </div>
+
+    <script>
+        // 自动适配 WebSocket 地址（无需硬编码 IP）
+        const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const wsHost = window.location.hostname;
+        const wsPort = 8089;
+        const ws = new WebSocket(`${wsProtocol}//${wsHost}:${wsPort}`);
+
+        const chatBox = document.getElementById("chat-box");
+        const inputBox = document.getElementById("input-box");
+        const sendBtn = document.getElementById("send-btn");
+        const statusElement = document.getElementById("status");
+        const statusText = document.getElementById("status-text");
+
+        // 用户名设置（初始值仅用于本地显示，实际昵称由后端分配）
+        let username = "用户" + Math.floor(Math.random() * 1000);
+
+        // 消息解析函数 - 适配后端 [昵称] 消息 格式
+        function parseMessage(data) {
+            const message = data.trim();
+
+            // 1. 系统消息（包含[系统]前缀）
+            if (message.includes('[系统]')) {
+                return {
+                    type: 'system',
+                    content: message.replace('[系统]', '').trim(),
+                    raw: message
+                };
+            }
+
+            // 2. 普通聊天消息（[昵称] 消息内容 格式）
+            const startBracket = message.indexOf('[');
+            const endBracket = message.indexOf(']');
+            if (startBracket === 0 && endBracket > 0) {
+                const sender = message.substring(1, endBracket).trim();
+                const msgContent = message.substring(endBracket + 1).trim();
+                return {
+                    type: 'other',
+                    sender: sender,
+                    content: msgContent,
+                    raw: message
+                };
+            }
+
+            // 3. 其他情况（兼容异常消息）
+            return {
+                type: 'other',
+                sender: '其他人',
+                content: message,
+                raw: message
+            };
+        }
+
+        // 创建消息元素
+        function createMessageElement(messageObj, isSelf = false) {
+            const messageDiv = document.createElement('div');
+
+            if (messageObj.type === 'system') {
+                messageDiv.className = 'message system';
+                messageDiv.textContent = messageObj.content;
+                return messageDiv;
+            }
+
+            messageDiv.className = isSelf ? 'message self' : 'message other';
+
+            // 添加消息元信息
+            const metaDiv = document.createElement('div');
+            metaDiv.className = 'message-meta';
+
+            const senderSpan = document.createElement('span');
+            senderSpan.className = 'sender-name';
+            senderSpan.textContent = isSelf ? '我' : messageObj.sender;
+
+            const timeSpan = document.createElement('span');
+            timeSpan.className = 'message-time';
+            timeSpan.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            metaDiv.appendChild(senderSpan);
+            metaDiv.appendChild(timeSpan);
+
+            // 添加消息内容
+            const contentDiv = document.createElement('div');
+            contentDiv.textContent = messageObj.content;
+
+            messageDiv.appendChild(metaDiv);
+            messageDiv.appendChild(contentDiv);
+
+            return messageDiv;
+        }
+
+        // 接收服务器消息
+        ws.onmessage = (e) => {
+            const messageObj = parseMessage(e.data);
+            // 排除自己发送的消息（避免重复显示）
+            const isSelfMsg = messageObj.type === 'other' && messageObj.sender === username;
+            if (!isSelfMsg) {
+                const messageElement = createMessageElement(messageObj, false);
+                chatBox.appendChild(messageElement);
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
+        };
+
+        // 发送消息
+        function sendMsg() {
+            const text = inputBox.value.trim();
+            if (!text) return;
+
+            // 1. 处理/name改名命令
+            if (text.startsWith('/name ')) {
+                const newName = text.substring(6).trim();
+                if (newName) {
+                    username = newName; // 更新本地用户名
+                    addSystemMessage(`用户名已更改为: ${username}`);
+                    ws.send(text); // 关键：发送给后端更新
+                } else {
+                    addSystemMessage('⚠️ 昵称不能为空！');
+                }
+                inputBox.value = "";
+                return;
+            }
+
+            // 2. 处理/online在线列表命令
+            if (text === '/online') {
+                ws.send(text); // 发送给后端获取在线列表
+                inputBox.value = "";
+                return;
+            }
+
+            // 3. 处理/quit退出命令
+            if (text === '/quit') {
+                ws.send(text);
+                ws.close();
+                inputBox.value = "";
+                return;
+            }
+
+            // 4. 普通消息
+            const messageObj = {
+                type: 'message',
+                sender: username,
+                content: text
+            };
+            const messageElement = createMessageElement(messageObj, true);
+            chatBox.appendChild(messageElement);
+            chatBox.scrollTop = chatBox.scrollHeight;
+
+            // 发送到服务器
+            ws.send(text);
+            inputBox.value = "";
+        }
+
+        // 添加系统消息
+        function addSystemMessage(text) {
+            const messageObj = {
+                type: 'system',
+                content: text
+            };
+            const messageElement = createMessageElement(messageObj);
+            chatBox.appendChild(messageElement);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        // 绑定事件
+        sendBtn.onclick = sendMsg;
+        inputBox.onkeydown = (e) => {
+            if (e.key === 'Enter') sendMsg();
+        };
+
+        // 连接状态处理
+        ws.onopen = () => {
+            statusElement.className = 'status connected';
+            statusText.textContent = '已连接到服务器';
+            addSystemMessage('✅ 已连接到聊天室服务器');
+            addSystemMessage('💡 命令说明：/name 新昵称 | /online 查看在线 | /quit 退出');
+        };
+
+        ws.onclose = () => {
+            statusElement.className = 'status disconnected';
+            statusText.textContent = '与服务器断开连接';
+            addSystemMessage('❌ 与服务器断开连接');
+        };
+
+        ws.onerror = (error) => {
+            statusElement.className = 'status disconnected';
+            statusText.textContent = '连接出错';
+            addSystemMessage('⚠️ 连接出错，请检查服务器地址');
+            console.error('WebSocket error:', error);
+        };
+    </script>
+</body>
+
+</html>

@@ -312,8 +312,12 @@ void ChatServer::process_message(int client_fd, const char *buffer, ssize_t len)
     }
     else if (cmd.type == CommandParser::CommandType::ONLINE)
     {
-        // 查看在线用户
+        // 查看在线用户（兼容旧前端的人数显示格式）
         std::string online_list = "[在线用户列表]\n";
+        // 第一行显示总人数（和新用户加入时的格式一致）
+        online_list += "当前在线: " + std::to_string(clients_.size()) + " 人\n";
+        online_list += "------------------------\n";
+        // 遍历显示每个用户
         for (const auto &client : clients_)
         {
             online_list += "  " + client.second->nickname + " (" +

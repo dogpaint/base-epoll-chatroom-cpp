@@ -1,27 +1,46 @@
-git# CMake构建产物
-build/
+# ====================== C++ 编译产物 ======================
+# CMake 构建目录（根目录下的 build/）
+/build/
+# CMake 临时文件
 CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
 Makefile
-
-# 编译生成的可执行文件
-chat_server
-chat_client
-tests/command_parser_test
-tests/chat_server_test
-tests/integration_test
-tests/client_display_test
-
-# 目标文件和依赖文件
+# 可执行文件（根目录下）
+/chat_server
+/chat_client
+# 测试可执行文件
+/tests/command_parser_test
+/tests/chat_server_test
+/tests/integration_test
+/tests/client_display_test
+# 目标文件/库文件
 *.o
 *.o.d
 *.a
 
-# 日志/临时文件
+# ====================== Python 相关 ======================
+# 虚拟环境（根目录下）
+/venv/
+/ven/
+/env/
+/ENV/
+# Python 缓存/编译文件
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+# 虚拟环境配置
+pyvenv.cfg
+
+# ====================== 临时/日志文件 ======================
 *.log
 *.tmp
 *.swp
 .DS_Store
 
+# ====================== 编辑器/前端 ======================
 .vscode/
+# 前端依赖/打包产物（可选，如需提交前端源码则保留）
+/frontend/node_modules/
+/frontend/dist/
