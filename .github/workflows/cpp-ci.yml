@@ -1,0 +1,53 @@
+# 工作流名称
+name: C++ CI/CD for Chatroom
+# 触发条件：main分支有push/PR时执行
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+# 任务定义
+jobs:
+  # 任务1：编译+测试（Ubuntu环境）
+  build-and-test:
+    # 运行环境：这里是我本地自带的版本
+    runs-on: ubuntu-24.04
+
+    # 步骤
+    steps:
+      # 步骤1：拉取代码到GitHub服务器
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 步骤2：安装依赖（g++/cmake/gtest）
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          # 安装编译器和构建工具
+          sudo apt install -y g++ cmake
+          # 安装GTest并编译（GitHub服务器的gtest默认未编译）
+          sudo apt install -y libgtest-dev
+          cd /usr/src/gtest
+          sudo cmake .
+          sudo make
+          sudo cp lib/libgtest* /usr/lib/
+
+      # 步骤3：创建build目录并编译
+      - name: Build project
+        run: |
+          mkdir -p build
+          cd build
+          cmake -DBUILD_TESTS=ON ..
+          make -j4  # 多核编译加速
+
+      # 步骤4：运行所有单元测试
+      - name: Run unit tests
+        run: |
+          cd build/tests
+          # 运行命令解析测试
+          ./command_parser_test
+          # 运行客户端显示测试
+          ./client_display_test
+          # 批量运行所有测试（看是否需要）
+          cd .. && ctest --output-on-failure

@@ -1,4 +1,4 @@
-# CMake构建产物
+git# CMake构建产物
 build/
 CMakeCache.txt
 CMakeFiles/
@@ -13,10 +13,15 @@ tests/chat_server_test
 tests/integration_test
 tests/client_display_test
 
+# 目标文件和依赖文件
+*.o
+*.o.d
+*.a
+
 # 日志/临时文件
 *.log
 *.tmp
+*.swp
 .DS_Store
 
-# VS Code配置（可选，不想上传则保留）
 .vscode/
