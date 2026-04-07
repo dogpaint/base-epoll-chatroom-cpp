@@ -19,20 +19,38 @@ Makefile
 *.o.d
 *.a
 
-# ====================== Python 相关 ======================
-# 虚拟环境（根目录下）
+# ====================== Python 测试环境 ======================
+# pytest 虚拟环境
+/pytest_venv/
 /venv/
-/ven/
 /env/
 /ENV/
-# Python 缓存/编译文件
+/.venv/
+/.env/
+
+# Python 缓存
 __pycache__/
-*.py[cod]
+*.pyc
+*.pyo
+*.pyd
 *$py.class
 *.so
-# 虚拟环境配置
-pyvenv.cfg
 
+# pytest 缓存
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ====================== Allure 测试报告 ======================
+/allure-results/
+/allure-report/
+/pytest_tests/allure-results/
+/pytest_tests/allure-report/
+
+# ====================== 测试报告 ======================
+/tests/test_report/
+*.html
+*.xml
 # ====================== 临时/日志文件 ======================
 *.log
 *.tmp
