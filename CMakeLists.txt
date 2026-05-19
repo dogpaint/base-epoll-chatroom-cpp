@@ -1,40 +1,48 @@
-#  指定CMake最低版本（兼容性保证）
 cmake_minimum_required(VERSION 3.10)
-# ^ 如果你的CMake版本低于3.10会报错
+project(ChatroomEpoll VERSION 2.0 LANGUAGES CXX)
 
-#  定义项目基本信息
-project(ChatroomEpoll CXX)
-# 项目名: ChatroomEpoll
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
+if(WIN32)
+    set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif()
 
-# 设置C++标准
-set(CMAKE_CXX_STANDARD 17)       # 使用C++17标准
-set(CMAKE_CXX_STANDARD_REQUIRED ON)  # 强制要求C++17
-# 可选: set(CMAKE_CXX_EXTENSIONS OFF)  # 禁用编译器扩展
-
-# 添加可执行文件（服务器）
-add_executable(chat_server       # 生成的可执行文件名
-    src/main.cpp                 # 源文件列表
-    src/ChatServer.cpp           # 可以有多个文件
-    src/command_parser.cpp
+set(PLATFORM_SOURCES
+    src/platform.cpp
 )
-# 编译后会生成: chat_server (Linux) 或 chat_server.exe (Windows)
 
-# 设置头文件包含路径
+set(SERVER_SOURCES
+    src/main.cpp
+    src/ChatServer.cpp
+    src/command_parser.cpp
+    ${PLATFORM_SOURCES}
+)
+
+add_executable(chat_server ${SERVER_SOURCES})
 target_include_directories(chat_server PRIVATE include)
-# ^ 告诉编译器：在include目录中查找头文件
-# PRIVATE: 只对chat_server目标有效
 
-# 链接库（如果需要）
-# target_link_libraries(chat_server pthread mysqlclient)
+if(WIN32)
+    target_link_libraries(chat_server ws2_32)
+    target_compile_definitions(chat_server PRIVATE _WIN32_WINNT=0x0600)
+endif()
 
-# 添加客户端子目录
+if(UNIX AND NOT APPLE)
+    target_compile_definitions(chat_server PRIVATE PLATFORM_LINUX=1)
+elseif(APPLE)
+    target_compile_definitions(chat_server PRIVATE PLATFORM_MACOS=1)
+endif()
+
 add_subdirectory(client)
-# ^ 进入client目录，执行那里的CMakeLists.txt
 
-#测试
-option(BUILD_TESTS "Build tests" ON)
+option(BUILD_TESTS "Build tests with Google Test" ON)
 if(BUILD_TESTS)
-   enable_testing()
-   add_subdirectory(tests)
+    enable_testing()
+    find_package(GTest QUIET)
+    if(GTest_FOUND)
+        add_subdirectory(tests)
+    else()
+        message(STATUS "GTest not found, skipping tests. Install with: sudo apt install libgtest-dev")
+    endif()
 endif()

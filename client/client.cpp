@@ -1,51 +1,20 @@
 #include <iostream>
 #include <cstring>
-#include <unistd.h>
-#include <arpa/inet.h>
-#include <sys/socket.h>
-#include <sys/epoll.h>
-#include <fcntl.h>
+#include <string>
 #include <thread>
 #include <atomic>
-#include <string>
+#include "../include/platform.hpp"
+#include "../include/common.hpp"
 
-const int PORT = 8088; // 确保和服务器端口一致
-const int BUFFER_SIZE = 4096;
 std::atomic<bool> running{true};
-std::atomic<bool> waiting_for_input{true};
 std::string my_nickname = "Guest";
 
-// 设置非阻塞
-void set_non_blocking(int fd)
-{
-    int flags = fcntl(fd, F_GETFL, 0);
-    fcntl(fd, F_SETFL, flags | O_NONBLOCK);
-}
-
-// 判断是否为命令
 bool is_command(const std::string &input)
 {
     return !input.empty() && input[0] == '/';
 }
 
-// 处理本地回显
-void handle_local_echo(const std::string &input)
-{
-    if (input.empty())
-        return;
-
-    // 不显示命令（除了/quit）
-    if (is_command(input) && input != "/quit")
-    {
-        return;
-    }
-
-    // 显示自己发送的消息
-    std::cout << "[我] " << input << std::endl;
-}
-
-// 接收消息线程
-void receive_thread(int sockfd)
+void receive_thread(platform::socket_t sockfd)
 {
     char buffer[BUFFER_SIZE];
 
@@ -56,41 +25,60 @@ void receive_thread(int sockfd)
         if (bytes_received > 0)
         {
             buffer[bytes_received] = '\0';
-
-            // 处理系统消息（如改名通知）
             std::string message(buffer, bytes_received);
 
-            // 如果收到改名通知，更新本地昵称
-            if (message.find("改名为") != std::string::npos)
+            size_t rename_pos = message.find("renamed to");
+            if (rename_pos != std::string::npos)
             {
-                // 格式："[系统] 旧昵称 改名为 新昵称\n"
-                size_t start = message.find("改名为") + 9; // 中文字符长度
+                size_t start = rename_pos + 10;
                 size_t end = message.find("\n", start);
                 if (start < message.length() && end != std::string::npos)
                 {
-                    my_nickname = message.substr(start, end - start);
+                    std::string new_name = message.substr(start, end - start);
+                    size_t trim_start = new_name.find_first_not_of(" \t");
+                    if (trim_start != std::string::npos)
+                    {
+                        my_nickname = new_name.substr(trim_start);
+                    }
                 }
             }
 
-            std::cout << message; // 显示收到的消息
+            std::cout << message;
         }
         else if (bytes_received == 0)
         {
-            std::cout << "\n[服务器] 连接已断开" << std::endl;
+            std::cout << "\n[Server] Connection closed" << std::endl;
             running = false;
-            waiting_for_input = false;
             break;
         }
-        else if (errno != EAGAIN && errno != EWOULDBLOCK)
+        else
         {
-            perror("接收错误");
-            running = false;
-            waiting_for_input = false;
-            break;
+            int err = platform::get_last_socket_error();
+#if PLATFORM_WINDOWS
+            if (err != WSAEWOULDBLOCK) {
+#else
+            if (err != EAGAIN && err != EWOULDBLOCK) {
+#endif
+                std::cerr << "[ERROR] Receive error: "
+                          << platform::get_socket_error_string(err) << std::endl;
+                running = false;
+                break;
+            }
         }
 
-        // 短暂休眠
-        usleep(10000); // 10ms
+        platform::sleep_ms(10);
+    }
+}
+
+void heartbeat_thread(platform::socket_t sockfd)
+{
+    while (running)
+    {
+        platform::sleep_ms(HEARTBEAT_INTERVAL_SEC * 1000);
+        if (!running) break;
+
+        std::string ping = "PING\n";
+        send(sockfd, ping.c_str(), ping.length(), 0);
     }
 }
 
@@ -102,18 +90,22 @@ int main(int argc, char *argv[])
         server_ip = argv[1];
     }
 
-    std::cout << "=== 聊天室客户端 ===\n";
-    std::cout << "连接服务器: " << server_ip << ":" << PORT << std::endl;
-
-    // 创建socket
-    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0)
+    if (!platform::network_startup())
     {
-        perror("socket创建失败");
+        std::cerr << "[FATAL] Network startup failed" << std::endl;
         return 1;
     }
 
-    // 连接服务器
+    std::cout << "=== Chatroom Client ===\n";
+    std::cout << "Connecting to: " << server_ip << ":" << PORT << std::endl;
+
+    platform::socket_t sockfd = platform::create_tcp_socket();
+    if (sockfd == platform::INVALID_SOCK)
+    {
+        std::cerr << "[ERROR] Failed to create socket" << std::endl;
+        return 1;
+    }
+
     struct sockaddr_in server_addr;
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
@@ -122,67 +114,62 @@ int main(int argc, char *argv[])
 
     if (connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
     {
-        perror("连接服务器失败");
-        close(sockfd);
+        std::cerr << "[ERROR] Connection failed: "
+                  << platform::get_socket_error_string(platform::get_last_socket_error())
+                  << std::endl;
+        platform::close_socket(sockfd);
         return 1;
     }
 
-    std::cout << "连接成功!\n";
-    std::cout << "特殊命令:\n";
-    std::cout << "  /name 昵称     - 修改昵称 (例: /name Alice)\n";
-    std::cout << "  /online        - 查看在线用户\n";
-    std::cout << "  /quit          - 退出聊天室\n";
+    std::cout << "Connected!\n";
+    std::cout << "Commands:\n";
+    std::cout << "  /name <nickname>  - Change nickname\n";
+    std::cout << "  /online           - View online users\n";
+    std::cout << "  /quit             - Exit chatroom\n";
     std::cout << "-------------------------\n";
 
-    // 设置非阻塞（用于接收）
-    set_non_blocking(sockfd);
+    platform::set_non_blocking(sockfd);
 
-    // 启动接收线程
     std::thread receiver(receive_thread, sockfd);
+    std::thread heartbeat(heartbeat_thread, sockfd);
 
-    // 主线程处理用户输入
     std::string input;
     while (running)
     {
         std::getline(std::cin, input);
 
-        if (!running)
-            break;
+        if (!running) break;
 
         if (!input.empty())
         {
             if (input == "/quit")
             {
-                // 本地回显退出消息
-                std::cout << "退出聊天室..." << std::endl;
+                std::cout << "Leaving chatroom..." << std::endl;
                 input += "\n";
                 send(sockfd, input.c_str(), input.length(), 0);
                 running = false;
                 break;
             }
 
-            // 处理本地回显（不显示命令）
             if (!is_command(input))
             {
-                std::cout << "[我] " << input << std::endl;
+                std::cout << "[Me] " << input << std::endl;
             }
 
-            // 添加换行符作为消息结束符
             input += "\n";
-
             if (send(sockfd, input.c_str(), input.length(), 0) < 0)
             {
-                perror("发送失败");
+                std::cerr << "[ERROR] Send failed" << std::endl;
                 break;
             }
         }
     }
 
-    // 清理
     running = false;
-    waiting_for_input = false;
-    receiver.join();
-    close(sockfd);
+    if (receiver.joinable()) receiver.join();
+    if (heartbeat.joinable()) heartbeat.join();
+    platform::close_socket(sockfd);
+    platform::network_cleanup();
 
     return 0;
 }

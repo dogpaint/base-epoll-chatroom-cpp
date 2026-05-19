@@ -1,44 +1,129 @@
-# 工作流名称
-name: C++ CI/CD for Chatroom
-# 触发条件：main分支有push/PR时执行
+name: CI/CD - Cross-Platform Chatroom
+
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
-# 任务定义
+env:
+  BUILD_TYPE: Release
+  CTEST_TIMEOUT: 300
+
 jobs:
-  # 任务1：编译+测试（Ubuntu环境）
-  build-and-test:
-    # 运行环境：这里是我本地自带的版本
+  # ── Linux (GCC) ──────────────────────────────────────────────────
+  linux-gcc:
     runs-on: ubuntu-24.04
-
-    # 步骤
     steps:
-      # 步骤1：拉取代码到GitHub服务器
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # 步骤 2：准备环境安装编译器、构建工具以及 Google Test 框架
       - name: Install dependencies
         run: |
-          sudo apt update
-          # googletest 包含源码，libgtest-dev 包含静态库链接信息
-          sudo apt install -y g++ cmake libgtest-dev googletest
+          sudo apt update -qq
+          sudo apt install -y -qq g++ cmake libgtest-dev googletest
 
-      # 步骤3：创建build目录并编译
-      - name: Build project
-        run: |
-          mkdir -p build
-          cd build
-          cmake -DBUILD_TESTS=ON ..
-          make -j$(nproc)
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-linux-${{ github.run_id }}
+          restore-keys: ccache-linux-
 
-      # 步骤4：运行所有单元测试
-      - name: Run unit tests
+      - name: Configure
+        run: cmake -B build -DBUILD_TESTS=ON -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+
+      - name: Build
+        run: cmake --build build -j$(nproc)
+
+      - name: Unit tests
+        run: ctest --test-dir build --output-on-failure -E "StressTest" --timeout $CTEST_TIMEOUT
+
+      - name: Stress tests (full)
+        run: ctest --test-dir build --output-on-failure -R "StressTest" --timeout $CTEST_TIMEOUT
+
+      - name: Validate performance
+        run: python3 scripts/validate_performance.py build/tests/stress_test_report.json
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: perf-report-linux
+          path: build/tests/stress_test_report.json
+
+  # ── macOS (Apple Clang) ──────────────────────────────────────────
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
         run: |
-          cd build
-          # 使用 ctest 自动发现并运行所有在 CMakeLists 中注册过的测试
-          # --output-on-failure 会在测试失败时显示具体的 C++ 报错信息
-          ctest --output-on-failure
+          brew install cmake googletest
+
+      - name: Configure
+        run: cmake -B build -DBUILD_TESTS=ON -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+
+      - name: Build
+        run: cmake --build build -j$(sysctl -n hw.logicalcpu)
+
+      - name: Unit tests
+        run: ctest --test-dir build --output-on-failure -E "StressTest" --timeout $CTEST_TIMEOUT
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chat_server-macos
+          path: build/chat_server
+
+  # ── Windows (MSVC) ───────────────────────────────────────────────
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install Google Test
+        run: |
+          git clone https://github.com/google/googletest.git --depth 1
+          cd googletest && mkdir bld && cd bld
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          cmake --build . --config Release
+          cmake --install . --prefix ${{ github.workspace }}\gtest
+
+      - name: Configure
+        run: |
+          cmake -B build -DBUILD_TESTS=ON `
+            -DCMAKE_PREFIX_PATH="$env:GITHUB_WORKSPACE\gtest" `
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release -j $env:NUMBER_OF_PROCESSORS
+
+      - name: Unit tests
+        run: ctest --test-dir build -C Release --output-on-failure -E "StressTest" --timeout $CTEST_TIMEOUT
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chat_server-windows
+          path: build\Release\chat_server.exe
+
+  # ── Performance gate ─────────────────────────────────────────────
+  perf-gate:
+    needs: [linux-gcc]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download perf report
+        uses: actions/download-artifact@v4
+        with:
+          name: perf-report-linux
+          path: report/
+
+      - name: Validate thresholds
+        run: |
+          python3 scripts/validate_performance.py report/stress_test_report.json
+          echo "::notice::Performance gate PASSED"

@@ -1,64 +1,73 @@
-# ====================== C++ 编译产物 ======================
-# CMake 构建目录（根目录下的 build/）
+# ====================== C++ Build Artifacts ======================
 /build/
-# CMake 临时文件
+/build*/
 CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
 Makefile
-# 可执行文件（根目录下）
+*.o
+*.o.d
+*.a
+*.exe
+
+# Compiled binaries
 /chat_server
 /chat_client
-# 测试可执行文件
 /tests/command_parser_test
 /tests/chat_server_test
 /tests/integration_test
 /tests/client_display_test
-# 目标文件/库文件
-*.o
-*.o.d
-*.a
+/tests/stress_test
 
-# ====================== Python 测试环境 ======================
-# pytest 虚拟环境
+# ====================== Stress Test Reports ======================
+**/stress_test_report.json
+*.json   # block stray JSON reports
+
+# ====================== Python Virtual Env ======================
 /pytest_venv/
 /venv/
 /env/
 /ENV/
 /.venv/
 /.env/
-
-# Python 缓存
-__pycache__/
 *.pyc
 *.pyo
 *.pyd
-*$py.class
-*.so
-
-# pytest 缓存
+__pycache__/
 .pytest_cache/
 .coverage
 htmlcov/
 
-# ====================== Allure 测试报告 ======================
+# ====================== Allure / Test Reports ======================
 /allure-results/
 /allure-report/
 /pytest_tests/allure-results/
 /pytest_tests/allure-report/
-
-# ====================== 测试报告 ======================
 /tests/test_report/
 *.html
 *.xml
-# ====================== 临时/日志文件 ======================
+
+# ====================== Logs / Temp ======================
 *.log
 *.tmp
 *.swp
+*.swo
 .DS_Store
+Thumbs.db
 
-# ====================== 编辑器/前端 ======================
+# ====================== IDE & Editors ======================
 .vscode/
-# 前端依赖/打包产物（可选，如需提交前端源码则保留）
+.idea/
+*.sublime-*
+*.code-workspace
+
+# ====================== OS junk ======================
+*~
+# ====================== Frontend ======================
 /frontend/node_modules/
 /frontend/dist/
+
+# ====================== Secrets / Tokens ======================
+.env
+*.pem
+*.key

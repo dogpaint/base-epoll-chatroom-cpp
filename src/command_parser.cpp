@@ -24,11 +24,17 @@ namespace CommandParser
         }
 
         // 解析命令类型
-        if (message.substr(0, 6) == "/name ")
+        if (message.substr(0, 5) == "/name")
         {
             result.type = CommandType::CHANGE_NAME;
-            result.argument = message.substr(6);
-
+            if (message.length() > 5 && message[5] == ' ')
+            {
+                result.argument = message.substr(6);
+            }
+            else if (message.length() > 6)
+            {
+                result.argument = message.substr(5);
+            }
             // 清理参数：去除前后空格和换行
             auto start = result.argument.find_first_not_of(" \t\r\n");
             auto end = result.argument.find_last_not_of(" \t\r\n");

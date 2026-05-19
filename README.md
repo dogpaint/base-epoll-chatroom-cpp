@@ -1,337 +1,252 @@
-# C++ 聊天室项目（Linux版）
+# Base Epoll Chatroom (C++) / 基于 Epoll 的跨平台 C++ 聊天室
 
-基于 Linux epoll 实现的多客户端聊天室，支持昵称修改、在线用户查看、消息广播等核心功能，配套完整单元测试，可选 Web 前端 + WebSocket 代理扩展。
+A high-performance chatroom server built with C++17, featuring **cross-platform** I/O (Linux epoll / macOS kqueue / Windows WSAPoll), **heartbeat monitoring**, **comprehensive stress testing**, and **CI/CD** with performance gates.
+一套基于 C++17 的高性能聊天室服务器，支持**跨平台** I/O（Linux epoll / macOS kqueue / Windows WSAPoll）、**心跳监测**、**全面压力测试**以及带性能阈值的 **CI/CD** 流水线。
 
-  
+---
 
-## 🛠️ 环境依赖
+## 项目特性 / Key Features
 
-### 核心后端（纯C++聊天室，无前端/测试）
+| Feature 特性                                             | Description 说明                                                   |
+| -------------------------------------------------------- | ------------------------------------------------------------------ |
+| Cross-platform I/O / 跨平台 I/O                         | Linux `epoll` / macOS `kqueue` / Windows `WSAPoll` auto-detected  |
+| Heartbeat engine / 心跳引擎                              | Server-side health loop + client PING/PONG, timeout disconnect     |
+| Stress testing / 压力测试                                | 5 scenarios: 20–100 concurrent users, generated JSON report        |
+| CI/CD / 持续集成                                         | GitHub Actions: Linux × macOS × Windows, perf threshold validation  |
+| Command parser / 命令解析                                | `/name`, `/online`, `/quit` with nickname support                  |
+| Web frontend (optional) / 可选 Web 前端                   | `ws_proxy.py` WebSocket bridge → browser chat UI                   |
 
-- 系统：Ubuntu 18.04+ / CentOS 7+ / 其他主流Linux发行版
+---
 
-- 编译器：g++ 7.5+（支持C++11及以上）
+## 架构概览 / Architecture
 
-- 构建工具：CMake 3.10+
+```
+                          ┌─────────────┐
+                          │  Browser UI  │
+                          └──────┬──────┘
+                          ws://  │
+                     ┌───────────▼───────────┐
+                     │   ws_proxy.py (Python)│
+                     └───────────┬───────────┘
+                          tcp:// │
+┌────────────────────────────────▼─────────────────────────────────┐
+│                      ChatServer  (C++17)                          │
+│  ┌──────────────┐  ┌──────────────┐  ┌────────────────────────┐  │
+│  │ Poller       │  │ Heartbeat    │  │ Client Map             │  │
+│  │ epoll/kqueue │  │ Engine       │  │ (fd → ClientInfo)      │  │
+│  │ /WSAPoll     │  │ 5s interval  │  │                        │  │
+│  └──────────────┘  └──────────────┘  └────────────────────────┘  │
+│  ┌──────────────┐  ┌──────────────────────────────────────────┐  │
+│  │ CommandParser│  │ Broadcast / Unicast Message Engine       │  │
+│  └──────────────┘  └──────────────────────────────────────────┘  │
+└───────────────────────────────────────────────────────────────────┘
+```
 
-- 测试框架：Google Test（GTest）1.8+
+---
 
-  
+## 快速开始 / Quick Start
 
-### Web前端 + WebSocket代理（可选）
+### 依赖 / Prerequisites
 
-- Python：3.6+（Ubuntu 18.04默认3.6，20.04默认3.8，24.04默认3.12）
+| Component         | Requirement 要求                             |
+| ----------------- | -------------------------------------------- |
+| C++ Compiler / 编译器 | g++ 7.5+ / Clang 10+ / MSVC 2019+            |
+| CMake             | 3.10+                                        |
+| Google Test       | 1.8+ (for unit tests / 单元测试需要)           |
+| Python            | 3.8+ (optional, for WebSocket proxy / 可选)   |
 
-- Python库：websockets 10.0+（兼容Python3.6+）
-
-- 浏览器：Chrome 60+ / Firefox 55+（支持WebSocket即可）
-
-  
-
-### 测试脚本（可选）
-
-- Python：3.6+
-
-- 可选依赖：pandas 1.0+、matplotlib 3.0+（性能报告可视化）
-
-- 模糊测试：AFL++ 2.52b+（Ubuntu 18.04可通过apt安装）
-
-  
-
-## 📌 兼容性说明
-
-1. **核心后端兼容Ubuntu 18.04**：
-
-   - 默认g++7.5、CMake3.10可直接编译核心后端；
-
-   - 安装GTest：`sudo apt install libgtest-dev && cd /usr/src/gtest && sudo cmake . && sudo make && sudo cp lib/*.a /usr/lib`。
-
-2. **Python3.6+适配**：
-
-   - Ubuntu 18.04：`pip3 install websockets==10.0`（指定兼容版本）；
-
-   - Ubuntu 20.04+/24.04：`pip3 install websockets`（自动装最新版）。
-
-3. **无Linux环境适配**：
-
-   - 纯后端可在WSL1/WSL2（Windows）、Docker中运行；
-
-   - 前端可在任意系统的现代浏览器中访问。
-
-  
-
-## 🚀 快速开始
-
-### 1. 克隆项目
+### 克隆 & 编译 / Clone & Build
 
 ```bash
-
 git clone https://github.com/dogpaint/base-epoll-chatroom-cpp.git
-
 cd base-epoll-chatroom-cpp
-
 ```
 
-  
-
-### 2. 安装系统依赖（Ubuntu）
-
+**Linux (Ubuntu)**
 ```bash
-
-sudo apt update && sudo apt install -y g++ cmake
-
-sudo apt install -y libgtest-dev
-
-cd /usr/src/gtest && sudo cmake . && sudo make && sudo cp lib/libgtest* /usr/lib/
-
-```
-
-  
-
-### 3. 编译后端代码
-
-```bash
-
+sudo apt install -y g++ cmake libgtest-dev
 mkdir build && cd build
-
-cmake ..
-
-make
-
-cd ..
-
+cmake -DBUILD_TESTS=ON ..
+make -j$(nproc)
 ```
 
-  
-
-### 4. 配置Python虚拟环境（WebSocket代理，可选）
-
+**macOS**
 ```bash
-
-# 安装虚拟环境依赖
-
-sudo apt install python3.12-venv
-
-  
-
-# 创建并激活虚拟环境
-
-python3 -m venv venv
-
-source venv/bin/activate
-
-  
-
-# 安装依赖库
-
-pip install websockets
-
+brew install cmake googletest
+mkdir build && cd build
+cmake -DBUILD_TESTS=ON ..
+make -j$(sysctl -n hw.logicalcpu)
 ```
 
-  
+**Windows (PowerShell)**
+```powershell
+# Install Google Test
+git clone https://github.com/google/googletest.git --depth 1
+cd googletest && mkdir bld && cd bld
+cmake .. && cmake --build . --config Release
+cmake --install . --prefix C:/gtest
 
-### 5. 一键启动所有服务
-
-```bash
-
-# 赋予启动脚本执行权限
-
-chmod +x scripts/start_all.sh
-
-  
-
-# 启动后端 + WebSocket 代理 + 前端 HTTP 服务
-
-./scripts/start_all.sh
-
+# Build project
+mkdir build && cd build
+cmake -DBUILD_TESTS=ON -DCMAKE_PREFIX_PATH="C:/gtest" ..
+cmake --build . --config Release
 ```
 
-如果一键脚本运行失败，可分步手动启动（适合排查问题）：
-
-  
-
-#### 步骤 1：启动 C++ 后端（核心）
-
-  
+### 运行服务器 / Start Server
 
 ```bash
-
-cd ~/charroom_epoll
-
 ./build/chat_server
-
-# 成功标志：终端输出「服务器启动，监听 8088 端口」
-
-# 保持该终端打开，关闭则后端停止
-
 ```
 
-  
-
-#### 步骤 2：启动 WebSocket 代理（新开终端）
-
-  
+### 运行客户端 / Start Client
 
 ```bash
-
-cd ~/charroom_epoll
-
-# 激活 Python 虚拟环境
-
-source venv/bin/activate
-
-# 启动代理
-
-python scripts/ws_proxy.py
-
-# 成功标志：终端输出「WebSocket 代理已启动：ws://0.0.0.0:8089」
-
-# 保持该终端打开
-
+./build/chat_client          # connect to 127.0.0.1
+./build/chat_client 10.0.0.1 # connect to specific IP / 指定IP
 ```
 
-  
+### 聊天命令 / Chat Commands
 
-#### 步骤 3：启动前端 HTTP 服务（新开终端）
+| Command 命令        | Description 说明                |
+| ------------------- | ------------------------------ |
+| `/name <nickname>`  | Change your nickname / 修改昵称 |
+| `/online`           | View online users / 在线用户    |
+| `/quit`             | Exit chatroom / 退出聊天室       |
 
-  
+---
+
+## 运行测试 / Run Tests
 
 ```bash
+cd build
 
-cd ~/charroom_epoll
+# Unit tests only / 仅单元测试
+ctest --output-on-failure -E "StressTest"
 
-# 启动轻量 HTTP 服务器（端口 8889，可替换为未被占用的端口）
+# Stress tests (with server auto-started) / 压力测试（自动启动服务端）
+ctest --output-on-failure -R "StressTest" --timeout 300
 
-python3 -m http.server 8889
-
-# 成功标志：终端输出「Serving HTTP on 0.0.0.0 port 8889」
-
+# All tests / 全部测试
+ctest --output-on-failure --timeout 300
 ```
 
-  
+### 压力测试场景 / Stress Test Scenarios
 
-#### 步骤 4：手动停止服务（可选）
+| Test 测试                                          | Clients / 用户 | Duration / 时长 | Notes 说明               |
+| -------------------------------------------------- | ------------ | ------------ | ------------------------ |
+| `LightLoad_20Clients_10Seconds`                     | 20           | 10 s         | Light load / 轻负载       |
+| `MediumLoad_50Clients_15Seconds`                    | 50           | 15 s         | Medium load / 中负载      |
+| `HeavyLoad_100Clients_20Seconds`                    | 100          | 20 s         | Heavy load / 重负载       |
+| `HeartbeatReliability`                              | 30           | 20 s         | PING/PONG reliability    |
+| `ConnectionBurst_SimultaneousClients`               | 100          | instant      | Burst connect / 突发连接  |
 
-  
+### 性能报告 / Performance Report
+
+每次压力测试后自动生成 `build/tests/stress_test_report.json`：
+
+```json
+{
+  "results": {
+    "throughput_msg_per_sec": 315.4,
+    "avg_latency_ms": 5.8,
+    "p95_latency_ms": 7.0,
+    "p99_latency_ms": 11.3,
+    "error_rate_percent": 0.0,
+    "heartbeat_ok": 90,
+    "connect_errors": 0
+  }
+}
+```
+
+验证报告 / Validate report：
 
 ```bash
-
-# 方式 1：关闭对应终端（简单）
-
-# 方式 2：终端执行命令杀死进程
-
-sudo killall chat_server python3
-
+python3 scripts/validate_performance.py build/tests/stress_test_report.json
 ```
 
-### 6. 访问聊天室
+### 性能阈值 / Performance Thresholds
 
-打开浏览器访问：`http://<你的服务器IP>:8889/frontend/chat.html`
+| Metric 指标                        | Threshold 阈值 | Description 说明                |
+| ---------------------------------- | ------------ | ------------------------------- |
+| Throughput 吞吐量                   | ≥ 50 msg/s   | Minimum messages per second     |
+| Avg connect time 平均连接时间        | ≤ 5000 ms    | Connection setup latency        |
+| Error rate 错误率                   | ≤ 5%         | Total errors / total messages   |
+| P95 latency P95延迟                 | ≤ 500 ms     | 95th percentile round-trip      |
+| P99 latency P99延迟                 | ≤ 1000 ms    | 99th percentile round-trip      |
 
-- 本地测试：`http://localhost:8889/frontend/chat.html`
+---
 
-- 局域网访问：`http://你的LinuxIP:8889/frontend/chat.html`
+## 心跳监测机制 / Heartbeat Mechanism
 
-  
+- **Server side / 服务端**: `health_monitor_loop` runs every 5 seconds, logs health status. `heartbeat_check` disconnects clients idle > 15 seconds.
+- **Client side / 客户端**: sends `PING` every 5 seconds, expects `PONG` response.
+- **Alert / 告警**: abnormal heartbeat failures logged as `[ALERT]` after sustained failures.
 
-### 7. 基础使用
+---
 
-- `/name 昵称`：修改个人昵称
+## 项目结构 / Project Structure
 
-- 直接输入文字：发送群消息
+```
+base-epoll-chatroom-cpp/
+├── include/                    # Header files / 头文件
+│   ├── platform.hpp           # Cross-platform abstraction / 跨平台抽象
+│   ├── ChatServer.hpp         # Server class / 服务端类
+│   ├── ClientInfo.hpp         # Client metadata / 客户端元信息
+│   ├── common.hpp             # Global constants / 全局常量
+│   └── command_parser.hpp     # Command parser / 命令解析器
+├── src/                        # Server source / 服务端源码
+│   ├── main.cpp               # Entry point + signal handling / 入口+信号处理
+│   ├── ChatServer.cpp         # Core server logic / 核心服务器逻辑
+│   ├── platform.cpp           # Platform implementation / 平台实现
+│   └── command_parser.cpp     # Command parsing logic / 命令解析逻辑
+├── client/
+│   └── client.cpp             # Terminal client (heartbeat) / 终端客户端（心跳）
+├── tests/
+│   ├── stress_test.cpp        # ★ Stress test suite / 压力测试
+│   ├── command_parser_test.cpp
+│   ├── chat_server_test.cpp
+│   ├── integration_test.cpp
+│   └── client_display_test.cpp
+├── scripts/
+│   ├── validate_performance.py # ★ Performance validation / 性能验证
+│   └── ws_proxy.py             # WebSocket proxy / 代理
+├── frontend/
+│   └── chat.html               # Browser chat UI / 浏览器聊天界面
+├── .github/workflows/
+│   └── cpp-ci.yml              # ★ CI/CD pipeline / 持续集成
+├── CMakeLists.txt
+└── README.md
+```
 
-- `/online`：查看当前在线用户
+---
 
-- 多开浏览器窗口：模拟多客户端聊天
+## CI/CD 流水线 / CI/CD Pipeline
 
-  
+The [GitHub Actions workflow](.github/workflows/cpp-ci.yml) runs on every push and PR:
 
-## ⚙️ 常见问题
+| Job                          | Platform  | Description                                        |
+| ---------------------------- | --------- | -------------------------------------------------- |
+| `linux-gcc`                  | Ubuntu    | Build + unit tests + stress tests + perf validate  |
+| `macos`                      | macOS     | Build + unit tests + artifact upload               |
+| `windows`                    | Windows   | Build + unit tests + artifact upload               |
+| `perf-gate`                  | Ubuntu    | Downloads report artifact, validates thresholds    |
 
-### Q1: 端口被占用（Address already in use）
+---
+
+## Web 前端（可选）/ Optional Web UI
+
+(保持原有 ws_proxy.py 启动方式，如果你需要也可以保留)
 
 ```bash
-
-# 更换HTTP服务端口（示例：8000）
-
-python3 -m http.server 8000
-
-# 访问地址：http://<IP>:8000/frontend/chat.html
-
+python3 -m venv venv && source venv/bin/activate
+pip install websockets
+python3 scripts/ws_proxy.py &
+python3 -m http.server 8889 &
+# Open / 打开: http://localhost:8889/frontend/chat.html
 ```
 
-  
+---
 
-### Q2: 浏览器显示“断开连接”
+## 许可证 / License
 
-1. 检查服务状态：`ps -ef | grep chat_server`、`ps -ef | grep ws_proxy.py`
-
-2. 关闭Linux防火墙：`sudo ufw disable`
-
-3. 验证网络连通性：`ping <你的LinuxIP>`
-
-  
-
-### Q3: 局域网内其他人无法访问
-
-1. 确认双方在同一局域网；
-
-2. 服务已默认绑定 `0.0.0.0`（全网卡监听）；
-
-3. 检查防火墙/路由器是否放行 8088/8089/8889 端口。
-
-  
-
-## 📂 项目结构
-
-```
-
-charroom_epoll/
-
-├── src/           # C++ 后端核心代码
-
-├── frontend/      # Web 前端（纯 HTML/JS，零配置）
-
-├── tests/         # 测试脚本（单元/性能/压力/模糊）
-
-├── scripts/       # 启动脚本/工具脚本
-
-├── build/         # 编译产物（自动生成）
-
-├── venv/          # Python 虚拟环境（自动生成，.gitignore 忽略）
-
-└── README.md      # 使用说明
-
-```
-
-  
-
-## 🧪 测试相关
-
-### 测试文件目录
-
-```
-
-tests/
-
-├── command_parser_test.cpp  # 命令解析测试
-
-├── client_logic_test.cpp    # 客户端逻辑测试
-
-├── server_logic_test.cpp    # 服务器逻辑测试
-
-├── network_test.cpp         # 网络功能测试
-
-└── integration_test.cpp     # 集成测试
-
-```
-
-  
-
-### 总结
-
-1. 核心后端基于Linux epoll实现，兼容Ubuntu 18.04+，需g++7.5+和CMake3.10+编译；
-
-2. 可选WebSocket代理+Web前端，依赖Python3.6+和websockets库，浏览器访问指定地址即可使用；
-
-3. 支持昵称修改、在线用户查看、消息广播等核心功能，配套完整测试脚本，端口占用/连接失败可按常见问题排查。
+MIT License

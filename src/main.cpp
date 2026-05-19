@@ -1,32 +1,49 @@
 #include "ChatServer.hpp"
+#include "platform.hpp"
 #include <iostream>
-#include <csignal>
 #include <thread>
+#include <csignal>
 
 ChatServer *g_server = nullptr;
 
-// 信号处理函数（处理Ctrl+C）
+#if PLATFORM_WINDOWS
+BOOL WINAPI console_ctrl_handler(DWORD ctrl_type)
+{
+    if (ctrl_type == CTRL_C_EVENT || ctrl_type == CTRL_BREAK_EVENT)
+    {
+        std::cout << "\n[INFO] Received stop signal, shutting down..." << std::endl;
+        if (g_server) g_server->stop();
+        return TRUE;
+    }
+    return FALSE;
+}
+#else
+#include <csignal>
 void signal_handler(int signal)
 {
     if (signal == SIGINT && g_server)
     {
-        std::cout << "\n[INFO] 接收到停止信号，正在关闭服务器..." << std::endl;
+        std::cout << "\n[INFO] Received stop signal (SIGINT), shutting down..." << std::endl;
         g_server->stop();
     }
 }
+#endif
 
-// 控制台命令处理线程
 void console_thread(ChatServer &server)
 {
     std::string command;
     while (true)
     {
-        std::cout << "\n服务器命令 (status/stop/help): ";
+        std::cout << "\nServer command (status/stop/help/health): ";
         std::getline(std::cin, command);
 
         if (command == "status")
         {
             std::cout << server.get_server_info();
+        }
+        else if (command == "health")
+        {
+            std::cout << server.get_health_report() << std::endl;
         }
         else if (command == "stop")
         {
@@ -35,45 +52,54 @@ void console_thread(ChatServer &server)
         }
         else if (command == "help")
         {
-            std::cout << "可用命令:\n";
-            std::cout << "  status  - 显示服务器状态\n";
-            std::cout << "  stop    - 停止服务器\n";
-            std::cout << "  help    - 显示帮助\n";
+            std::cout << "Available commands:\n";
+            std::cout << "  status  - Show server status\n";
+            std::cout << "  health  - Show health report (JSON)\n";
+            std::cout << "  stop    - Stop server\n";
+            std::cout << "  help    - Show this help\n";
         }
         else if (!command.empty())
         {
-            std::cout << "未知命令: " << command << std::endl;
+            std::cout << "Unknown command: " << command << std::endl;
         }
     }
 }
 
 int main()
 {
-    std::cout << "=== 基于epoll的聊天室服务器 ===\n"
-              << std::endl;
+    std::cout << "=== Cross-Platform Chatroom Server ===\n" << std::endl;
 
-    // 注册信号处理
+    signal(SIGPIPE, SIG_IGN);
+
+    if (!platform::network_startup())
+    {
+        std::cerr << "[FATAL] Network startup failed" << std::endl;
+        return 1;
+    }
+
+#if PLATFORM_WINDOWS
+    SetConsoleCtrlHandler(console_ctrl_handler, TRUE);
+#else
     signal(SIGINT, signal_handler);
+#endif
 
     ChatServer server;
     g_server = &server;
 
-    // 初始化服务器
     if (!server.initialize())
     {
-        std::cerr << "服务器初始化失败!" << std::endl;
+        std::cerr << "[FATAL] Server initialization failed!" << std::endl;
         return 1;
     }
 
-    // 启动控制台线程
     std::thread console(console_thread, std::ref(server));
 
-    // 启动服务器主循环
     server.start();
 
-    // 等待控制台线程结束
     console.join();
 
-    std::cout << "\n[INFO] 服务器已安全关闭" << std::endl;
+    platform::network_cleanup();
+
+    std::cout << "\n[INFO] Server shut down safely" << std::endl;
     return 0;
 }
